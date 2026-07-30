@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { executeWorkflow, type EngineDependencies, type ExecuteWorkflowOptions } from './executor';
+import {
+  executeWorkflow,
+  type EngineDependencies,
+  type EngineRunResult,
+  type ExecuteWorkflowOptions,
+} from './executor';
 import { WorkflowValidationError } from './validate';
 import { TimeoutError } from './concurrency';
 import { ProviderError } from '@/types/provider';
@@ -65,7 +70,7 @@ function run(
 }
 
 const eventTypes = (events: ExecutionEvent[]) => events.map((e) => e.type);
-const stepFor = (result: { steps: { nodeId: string }[] }, nodeId: string) =>
+const stepFor = (result: EngineRunResult, nodeId: string) =>
   result.steps.find((s) => s.nodeId === nodeId);
 
 describe('happy path', () => {

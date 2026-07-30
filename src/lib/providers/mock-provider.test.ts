@@ -146,7 +146,7 @@ describe('failure simulation', () => {
 
     await expect(failing.complete(request())).rejects.toBeInstanceOf(ProviderError);
 
-    const error = await failing.complete(request()).catch((e: unknown) => e as ProviderError);
+    const error = (await failing.complete(request()).catch((e: unknown) => e)) as ProviderError;
     // Simulated 503s must be retryable, or the engine's retry path is never exercised.
     expect(error.retryable).toBe(true);
     expect(error.provider).toBe('mock');
@@ -168,9 +168,9 @@ describe('cancellation', () => {
     const controller = new AbortController();
     controller.abort();
 
-    const error = await provider()
+    const error = (await provider()
       .complete(request({ signal: controller.signal }))
-      .catch((e: unknown) => e as ProviderError);
+      .catch((e: unknown) => e)) as ProviderError;
 
     expect(error).toBeInstanceOf(ProviderError);
     // Retrying a cancelled request would defeat the cancellation.
