@@ -295,9 +295,22 @@ Engine and mock tuning (`ENGINE_MAX_CONCURRENCY`, `ENGINE_MAX_ATTEMPTS`, `MOCK_L
 
 ```bash
 npm test
+npm run test:coverage
 ```
 
-Covers the builder store (undo/redo, dangling-edge cleanup, drag exclusion, dirty tracking), the API client (envelope unwrapping, typed errors, aborts), the SSE stream hook (named-event handling, live node state, terminal statuses, reconnect semantics), edge-condition formatting, and component behaviour for the execution table and step cards.
+**509 tests across 25 files.** Coverage on the domain layer: `lib/workflow` 96%, `lib/optimizer` 92%.
+
+| Area | What's covered |
+|---|---|
+| **Engine** | Topological layering, cycle detection, graph validation, branch-condition evaluation, bounded concurrency, backoff jitter, metrics. |
+| **Executor** | Data flow between nodes, parallel dispatch, OR-join activation, subtree pruning on an unsatisfied branch, retry/no-retry classification, per-node attempt caps, failure isolation, cancellation, unreachable-node handling. |
+| **Optimizer** | Every rule gets a graph that violates it *and* one that doesn't — a rule that fires on everything is as useless as one that never fires. Plus scoring, grading, patch safety, and selective apply. |
+| **Providers** | Mock determinism and seed variation, `maxTokens` truncation, simulated-failure retryability, credential-based fallback, pricing and token math. |
+| **Agents** | Definition integrity, override merging, prompt assembly, and confidence never exceeding the weakest upstream input. |
+| **Services** | SSE bus replay and terminal-event semantics, error mapping, JSON-column serialisation. |
+| **UI** | Builder store (undo/redo, dangling-edge cleanup, drag exclusion), API client envelope and typed errors, SSE hook, execution table and step cards. |
+
+The engine tests inject a frozen clock, a no-op sleep, and stub agents, so they assert orchestration rather than model behaviour and the suite runs in ~12s.
 
 ---
 
@@ -306,4 +319,17 @@ Covers the builder store (undo/redo, dangling-edge cleanup, drag exclusion, dirt
 - **Single-instance SSE.** See the execution-engine note above.
 - **No authentication.** Everything is single-tenant and unauthenticated; this is a local engineering tool, not a hosted product.
 - **SQLite.** Fine for local use; the schema moves to Postgres with a datasource change and a `TEXT` → `jsonb` swap on the JSON columns.
-- **Engine and optimizer unit tests are not written yet.** The current suite covers the UI layer and the shared client code; the pure domain logic in `src/lib/workflow/` and `src/lib/optimizer/` deserves the same treatment.
+- **The service layer is not unit-tested.** `workflow.service`, `execution.service`, and `analytics.service` all talk to Prisma, so testing them properly means a throwaway database per run rather than a mock that would only assert the mock. The pure parts they depend on — the engine, the optimizer, serialisation, the event bus — are covered directly. The API surface is exercised end-to-end instead (see below).
+- **The real OpenAI and Anthropic providers are only covered structurally.** Their request-shaping logic is tested through the pricing and sampling-parameter helpers; the HTTP calls themselves would need recorded fixtures or a live key.
+
+### End-to-end check
+
+The unit suite does not touch the database or the HTTP layer, so verify those by running the thing:
+
+```bash
+npm run build && npm start
+
+curl localhost:3000/api/health                       # db reachable, active provider
+curl localhost:3000/api/workflows                    # seeded workflows
+curl -N localhost:3000/api/executions/<id>/stream    # live SSE frames
+```
