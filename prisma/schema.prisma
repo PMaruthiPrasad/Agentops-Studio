@@ -1,0 +1,201 @@
+// AgentOps Studio — data model
+//
+// SQLite for zero-setup local development. Two portability notes:
+//
+//  1. JSON payloads (node config, edge conditions, tags, version snapshots) are
+//     stored as TEXT and (de)serialised in the repository layer. Prisma's `Json`
+//     scalar support varies across SQLite versions; TEXT behaves identically
+//     everywhere and moves to Postgres `jsonb` with a one-line schema change.
+//  2. Enums are stored as strings. SQLite has no native enum type, and Zod
+//     already validates these values at every boundary.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A saved agent graph.
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @default("")
+  /// JSON string array, e.g. ["legal","review"].
+  tags        String   @default("[]")
+  isFavorite  Boolean  @default(false)
+  /// Bumped on every graph change; a snapshot is written to WorkflowVersion.
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  nodes    WorkflowNode[]
+  edges    WorkflowEdge[]
+  versions WorkflowVersion[]
+  runs     Execution[]
+
+  @@index([updatedAt])
+  @@index([isFavorite])
+}
+
+/// One agent placed on the canvas.
+model WorkflowNode {
+  id         String @id @default(cuid())
+  workflowId String
+  /// Stable id within the graph — also the React Flow node id.
+  nodeKey    String
+  /// AgentType: planner | researcher | retriever | knowledge | coder |
+  /// reviewer | critic | tester | legal_validator | custom
+  agentType  String
+  label      String
+  description String @default("")
+  positionX  Float  @default(0)
+  positionY  Float  @default(0)
+  /// JSON NodeConfig — per-node overrides of the agent defaults.
+  config     String @default("{}")
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, nodeKey])
+  @@index([workflowId])
+}
+
+/// A directed dependency between two nodes.
+model WorkflowEdge {
+  id         String  @id @default(cuid())
+  workflowId String
+  edgeKey    String
+  sourceKey  String
+  targetKey  String
+  label      String?
+  /// JSON EdgeCondition — {"kind":"always"} or an expression predicate.
+  condition  String  @default("{\"kind\":\"always\"}")
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, edgeKey])
+  @@index([workflowId])
+}
+
+/// Immutable snapshot of a graph, written whenever the structure changes.
+model WorkflowVersion {
+  id         String   @id @default(cuid())
+  workflowId String
+  version    Int
+  /// JSON WorkflowGraph.
+  snapshot   String
+  message    String   @default("")
+  createdAt  DateTime @default(now())
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, version])
+  @@index([workflowId, createdAt])
+}
+
+/// One run of a workflow against a task.
+model Execution {
+  id         String    @id @default(cuid())
+  workflowId String
+  /// Denormalised so an execution stays readable after its workflow is renamed.
+  workflowName String  @default("")
+  task       String
+  /// ExecutionStatus: pending | running | success | partial | failed | cancelled
+  status     String    @default("pending")
+  startedAt  DateTime  @default(now())
+  completedAt DateTime?
+  durationMs Int       @default(0)
+
+  totalTokens       Int    @default(0)
+  promptTokens      Int    @default(0)
+  completionTokens  Int    @default(0)
+  totalCostUsd      Float  @default(0)
+  successRate       Float  @default(0)
+  averageConfidence Float  @default(0)
+  averageLatencyMs  Int    @default(0)
+
+  /// Structural metrics captured at run time — the graph may change later.
+  nodeCount            Int   @default(0)
+  edgeCount            Int   @default(0)
+  layerCount           Int   @default(0)
+  retryCount           Int   @default(0)
+  parallelizationScore Float @default(0)
+  complexityScore      Float @default(0)
+
+  error String?
+  /// JSON WorkflowGraph actually executed — makes a run fully reproducible.
+  graphSnapshot String @default("{\"nodes\":[],\"edges\":[]}")
+
+  workflow Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  steps    ExecutionStep[]
+
+  @@index([workflowId])
+  @@index([startedAt])
+  @@index([status])
+}
+
+/// One node's execution record — the unit engineers actually debug.
+model ExecutionStep {
+  id          String @id @default(cuid())
+  executionId String
+  nodeKey     String
+  agentType   String
+  label       String
+  /// StepStatus: pending | running | success | failed | skipped | cancelled
+  status      String
+  /// Topological layer; steps sharing a layer ran concurrently.
+  layer       Int    @default(0)
+  /// Position within the layer, for stable timeline ordering.
+  sequence    Int    @default(0)
+
+  attempts Int @default(0)
+  retries  Int @default(0)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  durationMs  Int       @default(0)
+
+  systemPrompt String @default("")
+  prompt       String @default("")
+  response     String @default("")
+
+  promptTokens     Int   @default(0)
+  completionTokens Int   @default(0)
+  totalTokens      Int   @default(0)
+  costUsd          Float @default(0)
+  confidence       Float @default(0)
+
+  provider String @default("mock")
+  model    String @default("")
+
+  error      String?
+  skipReason String?
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId])
+  @@index([agentType])
+  @@index([status])
+}
+
+/// User-editable defaults per agent type, seeded from the built-in catalogue.
+model AgentConfiguration {
+  id          String @id @default(cuid())
+  agentType   String @unique
+  name        String
+  description String @default("")
+  systemPrompt String
+  temperature Float  @default(0.4)
+  maxTokens   Int    @default(1500)
+  provider    String @default("mock")
+  model       String?
+
+  estimatedCostUsd   Float @default(0)
+  estimatedLatencyMs Int   @default(0)
+
+  isBuiltIn Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

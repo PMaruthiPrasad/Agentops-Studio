@@ -1,0 +1,7 @@
+node_modules
+.next
+coverage
+prisma/migrations
+package-lock.json
+*.db
+*.db-journal
