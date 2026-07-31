@@ -45,10 +45,10 @@ yarn-error.log*
 .vscode/*
 !.vscode/extensions.json
 
-@"
+# agent tooling
+.claude/settings.local.json
+
+# python (tooling scratch only — this project is Node)
 .venv/
 __pycache__/
 *.pyc
-.env
-.claude/settings.local.json
-"@ | Out-File -FilePath .gitignore -Encoding utf8
