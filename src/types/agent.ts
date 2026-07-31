@@ -29,7 +29,12 @@ export const agentConfigSchema = z.object({
   systemPrompt: z.string().min(1),
   temperature: z.number().min(0).max(2),
   maxTokens: z.number().int().min(64).max(32_000),
-  provider: providerIdSchema,
+  /**
+   * Pins this agent to a specific provider. Left unset — the normal case — the
+   * agent inherits `DEFAULT_LLM_PROVIDER`, which is what makes the env switch
+   * actually govern runs rather than merely label them.
+   */
+  provider: providerIdSchema.optional(),
   model: z.string().min(1).optional(),
   /** Rough per-invocation cost used for pre-run projections in the optimizer. */
   estimatedCostUsd: z.number().nonnegative(),

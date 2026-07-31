@@ -84,7 +84,15 @@ export function StepCard({ step, defaultOpen = false }: { step: ExecutionStep; d
             <dl className="tabular grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
               <div>
                 <dt className="text-muted-foreground">Provider</dt>
-                <dd className="truncate">{step.provider}</dd>
+                {/* A skipped step never reached a provider; naming one would
+                    imply it was billed. */}
+                <dd className="truncate">
+                  {step.status === 'skipped' ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    step.provider
+                  )}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Model</dt>

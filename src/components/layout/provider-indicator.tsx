@@ -25,7 +25,12 @@ export function ProviderIndicator() {
   }
 
   const providers = data?.providers ?? [];
-  const live = providers.find((provider) => provider.available && provider.id !== 'mock');
+  // Must mirror `getActiveProviderId()`: the *configured default* is what serves
+  // requests. Matching on "any available provider" would announce Anthropic
+  // while Google was actually being billed.
+  const live = providers.find(
+    (provider) => provider.isDefault && provider.available && provider.id !== 'mock',
+  );
   const active = live ?? providers.find((provider) => provider.id === 'mock');
   const isMock = !live;
 

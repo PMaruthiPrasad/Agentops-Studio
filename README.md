@@ -79,6 +79,7 @@ flowchart TB
         mock["MockProvider<br/>(default — no key)"]
         openai["OpenAIProvider"]
         anthropic["AnthropicProvider"]
+        google["GoogleProvider<br/>(Vertex AI — ADC)"]
     end
 
     db[("SQLite<br/>via Prisma")]
@@ -93,13 +94,13 @@ flowchart TB
     bus -.-> stream
     osvc --> optimizer
     engine --> agents --> providers
-    providers --> mock & openai & anthropic
+    providers --> mock & openai & anthropic & google
     services --> db
 ```
 
 ### The three seams that matter
 
-**`LLMProvider`** — one interface, three implementations. Swapping providers is a registry lookup, and a node that asks for a provider with no credentials transparently falls back to the mock. That is the rule that keeps the project runnable with an empty `.env`.
+**`LLMProvider`** — one interface, four implementations. Swapping providers is a registry lookup, and a node that asks for a provider with no credentials transparently falls back to the mock. That is the rule that keeps the project runnable with an empty `.env`. Adding Vertex AI touched exactly three things: a new class, one registry line, one enum entry — no call site changed, because `PROVIDER_IDS` already drives the Zod schemas and the builder's provider dropdown.
 
 **`WorkflowGraph`** — the canvas, the engine, the optimizer, and the database all speak this one structure. None of them import each other. The React Flow view models live in `src/components/builder/flow-types.ts` and are derived from the domain graph, never persisted.
 
@@ -243,7 +244,7 @@ curl -X POST localhost:3000/api/executions \
 
 ## Using real providers
 
-Leave the keys unset and everything runs on `MockProvider`. Set one and the matching provider becomes available; any node configured to use it will hit the real API, and nodes still fall back to the mock when their requested provider has no credentials.
+Leave the credentials unset and everything runs on `MockProvider`. Supply them and the matching provider becomes available; any node configured to use it will hit the real API, and nodes still fall back to the mock when their requested provider has no credentials.
 
 ```bash
 ANTHROPIC_API_KEY="sk-ant-..."
@@ -252,8 +253,30 @@ ANTHROPIC_DEFAULT_MODEL="claude-opus-5"   # the default
 OPENAI_API_KEY="sk-..."
 OPENAI_DEFAULT_MODEL="gpt-4o-mini"
 
-DEFAULT_LLM_PROVIDER="anthropic"          # mock | openai | anthropic
+GOOGLE_CLOUD_PROJECT="my-project"         # no key — see below
+GOOGLE_CLOUD_LOCATION="us-central1"
+GOOGLE_DEFAULT_MODEL="gemini-3.6-flash"
+
+DEFAULT_LLM_PROVIDER="anthropic"          # none | mock | openai | anthropic | google
 ```
+
+`none` is an explicit opt-out: everything runs on the mock even when real credentials are present.
+
+Resolution order for any node is **node override → agent-type pin → `DEFAULT_LLM_PROVIDER`**. Built-in agents pin nothing, so the env setting is what actually governs a run; a node that names a provider with no credentials still falls back to the mock rather than failing.
+
+### Google Vertex AI
+
+Vertex has no API key. It authenticates with **Application Default Credentials**, so pick whichever fits:
+
+```bash
+gcloud auth application-default login              # local development
+GOOGLE_APPLICATION_CREDENTIALS="/path/key.json"    # service account
+# ...or nothing on GCP, where the metadata server provides them
+```
+
+Because credentials are ambient rather than a value we can inspect, `GOOGLE_CLOUD_PROJECT` is what marks the provider as configured — `isAvailable()` reports "configured", not "credentials verified". If ADC turns out to be missing, the first call fails with a **non-retryable** error naming the fix rather than burning all three retry attempts on a misconfiguration.
+
+Only the token minting uses a library (`google-auth-library`); the `generateContent` call itself is a plain `fetch`, which keeps `AbortSignal` cancellation working and leaves retry policy entirely to the engine.
 
 The sidebar always shows which provider is actually serving requests, so "am I spending money right now?" is answerable at a glance.
 
@@ -305,7 +328,7 @@ npm run test:coverage
 | **Engine** | Topological layering, cycle detection, graph validation, branch-condition evaluation, bounded concurrency, backoff jitter, metrics. |
 | **Executor** | Data flow between nodes, parallel dispatch, OR-join activation, subtree pruning on an unsatisfied branch, retry/no-retry classification, per-node attempt caps, failure isolation, cancellation, unreachable-node handling. |
 | **Optimizer** | Every rule gets a graph that violates it *and* one that doesn't — a rule that fires on everything is as useless as one that never fires. Plus scoring, grading, patch safety, and selective apply. |
-| **Providers** | Mock determinism and seed variation, `maxTokens` truncation, simulated-failure retryability, credential-based fallback, pricing and token math. |
+| **Providers** | Mock determinism and seed variation, `maxTokens` truncation, simulated-failure retryability, credential-based fallback, `none` opt-out, provider inheritance from the env default, pricing and token math. |
 | **Agents** | Definition integrity, override merging, prompt assembly, and confidence never exceeding the weakest upstream input. |
 | **Services** | SSE bus replay and terminal-event semantics, error mapping, JSON-column serialisation. |
 | **UI** | Builder store (undo/redo, dangling-edge cleanup, drag exclusion), API client envelope and typed errors, SSE hook, execution table and step cards. |
@@ -320,7 +343,8 @@ The engine tests inject a frozen clock, a no-op sleep, and stub agents, so they 
 - **No authentication.** Everything is single-tenant and unauthenticated; this is a local engineering tool, not a hosted product.
 - **SQLite.** Fine for local use; the schema moves to Postgres with a datasource change and a `TEXT` → `jsonb` swap on the JSON columns.
 - **The service layer is not unit-tested.** `workflow.service`, `execution.service`, and `analytics.service` all talk to Prisma, so testing them properly means a throwaway database per run rather than a mock that would only assert the mock. The pure parts they depend on — the engine, the optimizer, serialisation, the event bus — are covered directly. The API surface is exercised end-to-end instead (see below).
-- **The real OpenAI and Anthropic providers are only covered structurally.** Their request-shaping logic is tested through the pricing and sampling-parameter helpers; the HTTP calls themselves would need recorded fixtures or a live key.
+- **The real OpenAI, Anthropic and Google providers are only covered structurally.** Their request-shaping logic is tested through the registry, pricing, and sampling-parameter helpers; the HTTP calls themselves would need recorded fixtures or live credentials.
+- **The `gemini-3.6-flash` price row is inherited from the Gemini 2.5 Flash tier and is unverified.** Every cost figure the dashboard and optimizer report for a Google run depends on it — confirm against the Vertex pricing page before trusting those numbers.
 
 ### End-to-end check
 

@@ -19,7 +19,19 @@ const envSchema = z.object({
   ANTHROPIC_BASE_URL: z.string().url().optional(),
   ANTHROPIC_DEFAULT_MODEL: z.string().min(1).default('claude-opus-5'),
 
-  DEFAULT_LLM_PROVIDER: z.enum(['mock', 'openai', 'anthropic']).default('mock'),
+  // Vertex AI authenticates with Application Default Credentials, so there is
+  // no key here — the project id is what marks the provider as configured.
+  // `GOOGLE_APPLICATION_CREDENTIALS` is deliberately absent: `google-auth-library`
+  // reads it from `process.env` itself, and `readRawEnv` only copies declared keys.
+  GOOGLE_CLOUD_PROJECT: z.string().min(1).optional(),
+  GOOGLE_CLOUD_LOCATION: z.string().min(1).default('us-central1'),
+  GOOGLE_DEFAULT_MODEL: z.string().min(1).default('gemini-3.6-flash'),
+  GOOGLE_VERTEX_BASE_URL: z.string().url().optional(),
+
+  /** `none` is an explicit opt-out that resolves to the mock provider. */
+  DEFAULT_LLM_PROVIDER: z
+    .enum(['none', 'mock', 'openai', 'anthropic', 'google'])
+    .default('mock'),
 
   ENGINE_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
   ENGINE_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(5).default(3),

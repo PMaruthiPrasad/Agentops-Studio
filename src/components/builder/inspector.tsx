@@ -339,7 +339,9 @@ export function Inspector() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="inherit">Inherit ({definition.provider})</SelectItem>
+                <SelectItem value="inherit">
+                  Inherit ({definition.provider ?? 'env default'})
+                </SelectItem>
                 {PROVIDER_IDS.map((provider) => (
                   <SelectItem key={provider} value={provider}>
                     {titleCase(provider)}

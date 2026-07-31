@@ -189,7 +189,8 @@ model AgentConfiguration {
   systemPrompt String
   temperature Float  @default(0.4)
   maxTokens   Int    @default(1500)
-  provider    String @default("mock")
+  /// NULL = inherit DEFAULT_LLM_PROVIDER. Only set to pin an agent to one provider.
+  provider    String?
   model       String?
 
   estimatedCostUsd   Float @default(0)

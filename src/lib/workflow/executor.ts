@@ -540,7 +540,9 @@ function buildStep(args: BuildStepArgs): ExecutionStep {
     usage: args.usage ?? EMPTY_USAGE,
     costUsd: args.costUsd ?? 0,
     confidence: args.confidence ?? 0,
-    provider: args.provider ?? args.agent.config.provider,
+    // No response to read the provider off (skipped, or failed before the call
+    // landed) — report the one that would have served it, not a guess.
+    provider: args.provider ?? args.agent.resolveProvider().id,
     model: args.model ?? args.agent.config.model ?? '',
     error: args.error ?? null,
     skipReason: null,
@@ -573,6 +575,10 @@ function buildSkippedStep(args: {
     usage: EMPTY_USAGE,
     costUsd: 0,
     confidence: 0,
+    // A skipped node never reaches a provider. This is a schema placeholder, not
+    // a claim — the analytics aggregate excludes skipped steps, and the step card
+    // hides the field. Resolving a "real" value here would mean constructing an
+    // agent for a node we deliberately never build one for.
     provider: 'mock',
     model: '',
     error: null,

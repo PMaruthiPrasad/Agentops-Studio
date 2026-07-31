@@ -75,7 +75,7 @@ async function seedAgentConfigurations(): Promise<void> {
         systemPrompt: definition.systemPrompt,
         temperature: definition.temperature,
         maxTokens: definition.maxTokens,
-        provider: definition.provider,
+        provider: definition.provider ?? null,
         model: definition.model ?? null,
         estimatedCostUsd: definition.estimatedCostUsd,
         estimatedLatencyMs: definition.estimatedLatencyMs,

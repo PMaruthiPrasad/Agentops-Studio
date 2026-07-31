@@ -231,7 +231,8 @@ export function toAgentConfig(row: AgentConfigurationRow): AgentConfig {
     systemPrompt: row.systemPrompt,
     temperature: row.temperature,
     maxTokens: row.maxTokens,
-    provider: toProviderId(row.provider),
+    // NULL means "inherit the env default" — only a stored value pins it.
+    ...(row.provider ? { provider: toProviderId(row.provider) } : {}),
     ...(row.model ? { model: row.model } : {}),
     estimatedCostUsd: row.estimatedCostUsd,
     estimatedLatencyMs: row.estimatedLatencyMs,

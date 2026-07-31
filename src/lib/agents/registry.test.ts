@@ -23,9 +23,22 @@ describe('agent definitions', () => {
     }
   });
 
-  it('defaults every agent to the mock provider so nothing bills by accident', () => {
+  it('pins no agent to a provider, so DEFAULT_LLM_PROVIDER governs', () => {
+    // A definition that hardcoded a provider would shadow the env setting
+    // entirely — the node would resolve its own value and never consult it.
     for (const definition of ALL_AGENT_DEFINITIONS) {
-      expect(definition.provider, definition.type).toBe('mock');
+      expect(definition.provider, definition.type).toBeUndefined();
+    }
+  });
+
+  it('still resolves to the mock by default, so nothing bills by accident', () => {
+    // The safety property is unchanged; it now comes from the env default
+    // (`DEFAULT_LLM_PROVIDER` defaults to `mock`) rather than from the
+    // definitions, which is what makes the setting switchable.
+    for (const definition of ALL_AGENT_DEFINITIONS) {
+      expect(createDefaultAgent(definition.type).resolveProvider().id, definition.type).toBe(
+        'mock',
+      );
     }
   });
 
@@ -99,6 +112,13 @@ describe('resolveNodeAgentConfig', () => {
 
   it('accepts a temperature of 0 rather than treating it as unset', () => {
     expect(resolveNodeAgentConfig('planner', 'P', { temperature: 0 }).temperature).toBe(0);
+  });
+
+  it('leaves the provider unset when the node does not pin one', () => {
+    // The regression this guards: definitions used to carry `provider: 'mock'`,
+    // which meant every node resolved an explicit provider and
+    // DEFAULT_LLM_PROVIDER was silently ignored for actual execution.
+    expect(resolveNodeAgentConfig('planner', 'P', {}).provider).toBeUndefined();
   });
 
   it('ignores a whitespace-only system prompt override', () => {

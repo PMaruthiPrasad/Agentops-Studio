@@ -23,6 +23,13 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'claude-sonnet-4-5': { inputPerMillion: 3, outputPerMillion: 15 },
   'claude-haiku-4-5': { inputPerMillion: 1, outputPerMillion: 5 },
 
+  // Google (Vertex AI)
+  'gemini-2.5-flash': { inputPerMillion: 0.3, outputPerMillion: 2.5 },
+  // Same tier rate as 2.5 Flash, NOT verified against published 3.x rates.
+  // Confirm at cloud.google.com/vertex-ai/generative-ai/pricing — every cost
+  // figure reported for a Google run depends on this row.
+  'gemini-3.6-flash': { inputPerMillion: 0.3, outputPerMillion: 2.5 },
+
   // Mock — priced like a small hosted model so demo numbers stay believable.
   'mock-sim-1': { inputPerMillion: 0.2, outputPerMillion: 0.8 },
 };
@@ -45,6 +52,7 @@ export const DEFAULT_MODELS: Record<ProviderId, string> = {
   mock: 'mock-sim-1',
   openai: 'gpt-4o-mini',
   anthropic: 'claude-opus-5',
+  google: 'gemini-3.6-flash',
 };
 
 /**
@@ -69,12 +77,19 @@ export function acceptsSamplingParams(model: string): boolean {
 }
 
 /**
- * Models where thinking is on by default and shares the `max_tokens` budget
+ * Models where thinking is on by default and shares the output-token budget
  * with the visible response.
  *
  * An agent asking for 1,400 tokens can otherwise spend most of them thinking
  * and return a truncated answer, so the provider raises a floor for these.
+ *
+ * Note this is a *different* property from `acceptsSamplingParams`: Gemini
+ * takes a temperature happily but still bills thinking against
+ * `maxOutputTokens`, which was verified against Vertex — a 1,400-token Planner
+ * came back truncated with `thoughtsTokenCount` eating the budget.
  */
+const THINKING_BUDGET_MODELS = [...NO_SAMPLING_PARAMS, 'gemini-2.5', 'gemini-3'];
+
 export function usesThinkingBudget(model: string): boolean {
-  return !acceptsSamplingParams(model);
+  return THINKING_BUDGET_MODELS.some((prefix) => model.startsWith(prefix));
 }

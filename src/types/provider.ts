@@ -7,7 +7,7 @@ import { z } from 'zod';
  * is plain TypeScript so it can be unit-tested and reused outside the app.
  */
 
-export const PROVIDER_IDS = ['mock', 'openai', 'anthropic'] as const;
+export const PROVIDER_IDS = ['mock', 'openai', 'anthropic', 'google'] as const;
 
 export const providerIdSchema = z.enum(PROVIDER_IDS);
 export type ProviderId = z.infer<typeof providerIdSchema>;
