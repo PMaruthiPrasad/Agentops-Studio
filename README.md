@@ -223,6 +223,7 @@ Every route returns `{ data }` on success or `{ error: { code, message, details?
 | `POST` | `/api/workflows/:id/optimize` | Analyse saved graph or `graphOverride` |
 | `POST` | `/api/workflows/:id/optimize/apply` | Return the patched graph (does not persist) |
 | `GET` | `/api/workflows/tags` | Tags in use, with counts |
+| `POST` | `/api/documents/extract` | Multipart PDF upload; returns extracted text |
 | `GET` | `/api/executions` | Run history; `?workflowId=` `&status=` |
 | `POST` | `/api/executions` | Start a run; returns immediately with a stream URL |
 | `GET` | `/api/executions/:id` | Full run including every step |
@@ -345,6 +346,8 @@ The engine tests inject a frozen clock, a no-op sleep, and stub agents, so they 
 - **The service layer is not unit-tested.** `workflow.service`, `execution.service`, and `analytics.service` all talk to Prisma, so testing them properly means a throwaway database per run rather than a mock that would only assert the mock. The pure parts they depend on — the engine, the optimizer, serialisation, the event bus — are covered directly. The API surface is exercised end-to-end instead (see below).
 - **The real OpenAI, Anthropic and Google providers are only covered structurally.** Their request-shaping logic is tested through the registry, pricing, and sampling-parameter helpers; the HTTP calls themselves would need recorded fixtures or live credentials.
 - **The `gemini-3.6-flash` price row is inherited from the Gemini 2.5 Flash tier and is unverified.** Every cost figure the dashboard and optimizer report for a Google run depends on it — confirm against the Vertex pricing page before trusting those numbers.
+- **Attached PDFs are flattened to text, and every node gets the whole document.** Extraction happens once at upload (`POST /api/documents/extract`) so that all four providers see the same thing and the `LLMProvider` interface stays string-based. Two consequences worth knowing: layout is lost, so tables and multi-column pages arrive in reading order rather than as tables; and a scanned PDF with no text layer is rejected rather than silently sent as a blank document — it needs OCR first. Because the text is replayed into *every* node's prompt, input tokens scale with document size × node count, which dominates the cost of a run on a long agreement.
+- **Layout is not tested against real-world PDFs.** The extractor is covered with generated PDFs built byte by byte in `pdf-fixture.ts`, which exercises the parse, pagination, whitespace and truncation paths but not the messy ones — rotated pages, embedded fonts with broken encodings, or forms.
 
 ### End-to-end check
 

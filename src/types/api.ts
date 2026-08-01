@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { runDocumentSchema } from './agent';
 import { workflowGraphSchema } from './workflow';
 import { executionStatusSchema } from './execution';
 
@@ -92,6 +93,12 @@ export type ImportWorkflowInput = z.infer<typeof importWorkflowSchema>;
 export const startExecutionSchema = z.object({
   workflowId: z.string().min(1),
   task: z.string().min(4, 'Describe the task in at least 4 characters').max(4_000),
+  /**
+   * Source material every node receives, already extracted to text by
+   * `POST /api/documents/extract`. The task stays a short instruction — this is
+   * the thing the instruction is *about*.
+   */
+  document: runDocumentSchema.optional(),
   /**
    * Runs the supplied graph instead of the saved one. Lets the builder execute
    * unsaved edits without forcing a save first.

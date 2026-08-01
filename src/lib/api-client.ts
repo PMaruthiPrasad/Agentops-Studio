@@ -41,7 +41,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     response = await fetch(path, {
       ...init,
       headers: {
-        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        // FormData is excluded deliberately: the browser has to set its own
+        // Content-Type so it can append the multipart boundary, and overriding
+        // it here makes the body unparseable on the server.
+        ...(init?.body && !(init.body instanceof FormData)
+          ? { 'Content-Type': 'application/json' }
+          : {}),
         ...init?.headers,
       },
     });
@@ -92,6 +97,9 @@ export const api = {
 
   delete: <T = void>(path: string, init?: RequestInit): Promise<T> =>
     request<T>(path, { ...init, method: 'DELETE' }),
+
+  upload: <T>(path: string, form: FormData, init?: RequestInit): Promise<T> =>
+    request<T>(path, { ...init, method: 'POST', body: form }),
 };
 
 /** Build a query string, dropping empty values so `?search=` never appears. */

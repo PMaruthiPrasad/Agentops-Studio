@@ -5,11 +5,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { Boxes, History, PanelRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@/components/ui/resizable';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useExecutionStream } from '@/hooks/use-execution-stream';
@@ -18,6 +14,7 @@ import { useWorkflow } from '@/hooks/use-resources';
 import { saveWorkflow, startExecution } from '@/lib/workflow-actions';
 import { toErrorMessage } from '@/lib/utils';
 import { useBuilderStore } from '@/stores/builder-store';
+import type { RunDocument } from '@/types/agent';
 import { AgentPalette } from './agent-palette';
 import { BuilderToolbar } from './builder-toolbar';
 import { Canvas } from './canvas';
@@ -57,7 +54,8 @@ export function WorkflowBuilder({ workflowId }: { workflowId: string }) {
   const stream = useExecutionStream(executionId, {
     onFinish: (status) => {
       if (status === 'success') toast.success('Run completed.');
-      else if (status === 'failed') toast.error('Run failed. Open the report for the failing step.');
+      else if (status === 'failed')
+        toast.error('Run failed. Open the report for the failing step.');
       else toast.warning(`Run finished with status: ${status}.`);
     },
   });
@@ -106,7 +104,7 @@ export function WorkflowBuilder({ workflowId }: { workflowId: string }) {
   }, [workflowId, markSaved]);
 
   const onRun = useCallback(
-    async (task: string) => {
+    async (task: string, document: RunDocument | null) => {
       const state = useBuilderStore.getState();
 
       setStarting(true);
@@ -117,6 +115,7 @@ export function WorkflowBuilder({ workflowId }: { workflowId: string }) {
         const result = await startExecution({
           workflowId,
           task,
+          ...(document ? { document } : {}),
           // Run exactly what's on screen — running the *saved* graph while the
           // canvas shows something else would be a genuinely confusing lie.
           graphOverride: state.graph,
@@ -239,12 +238,13 @@ export function WorkflowBuilder({ workflowId }: { workflowId: string }) {
               <TabsContent value="run" className="mt-0 min-h-0 flex-1">
                 <ErrorBoundary label="The run panel">
                   <RunPanel
+                    workflowId={workflowId}
                     executionId={executionId}
                     stream={stream}
                     starting={starting}
                     disabled={workflow.graph.nodes.length === 0 && !dirty}
                     dirty={dirty}
-                    onRun={(task) => void onRun(task)}
+                    onRun={(task, document) => void onRun(task, document)}
                     onClear={() => setExecutionId(null)}
                   />
                 </ErrorBoundary>

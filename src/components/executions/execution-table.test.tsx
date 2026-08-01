@@ -44,10 +44,33 @@ describe('ExecutionTable', () => {
       'href',
       '/workflows/wf_1',
     );
-    expect(screen.getByRole('link', { name: /Open run exec_1/ })).toHaveAttribute(
-      'href',
-      '/executions/exec_1',
-    );
+    expect(
+      screen.getByRole('link', { name: /Review a software licensing agreement/ }),
+    ).toHaveAttribute('href', '/executions/exec_1');
+  });
+
+  it('gives the run link a hit area covering the whole row', () => {
+    // Regression: the report was reachable only from the task text and a small
+    // chevron, so clicking the status, the cost or the row's empty space did
+    // nothing — and the workflow name, the most obvious target, navigated away
+    // to the builder instead. jsdom does no layout, so this asserts the
+    // mechanism: a stretched link inside a positioned row.
+    render(<ExecutionTable executions={[makeExecution()]} />);
+
+    const row = screen.getAllByRole('row')[1];
+    const runLink = screen.getByRole('link', { name: /Review a software licensing agreement/ });
+
+    expect(row?.className).toContain('relative');
+    expect(runLink.className).toContain('after:absolute');
+    expect(runLink.className).toContain('after:inset-0');
+  });
+
+  it('exposes exactly two links per row', () => {
+    // The chevron used to be a third anchor to the same destination, which is
+    // just an extra tab stop for keyboard users.
+    render(<ExecutionTable executions={[makeExecution()]} />);
+
+    expect(screen.getAllByRole('link')).toHaveLength(2);
   });
 
   it('drops the workflow column when the table is already scoped to one', () => {

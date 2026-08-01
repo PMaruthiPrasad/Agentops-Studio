@@ -10,6 +10,7 @@ import {
 } from '@/lib/workflow/executor';
 import { WorkflowValidationError } from '@/lib/workflow/validate';
 import { TopologyError } from '@/lib/workflow/topology';
+import type { RunDocument } from '@/types/agent';
 import type {
   ExecutionEvent,
   ExecutionResult,
@@ -50,7 +51,9 @@ export async function startExecution(input: StartExecutionInput): Promise<Starte
   const graph = input.graphOverride ?? workflow.graph;
 
   if (graph.nodes.length === 0) {
-    throw ServiceError.badRequest('This workflow has no agents. Add at least one node before running.');
+    throw ServiceError.badRequest(
+      'This workflow has no agents. Add at least one node before running.',
+    );
   }
 
   const env = getEnv();
@@ -64,6 +67,13 @@ export async function startExecution(input: StartExecutionInput): Promise<Starte
       nodeCount: graph.nodes.length,
       edgeCount: graph.edges.length,
       graphSnapshot: stringifyJsonColumn(graph),
+      // Persisted up front, with the graph snapshot, so a run stays readable
+      // even if it fails half way — the report should always be able to show
+      // what the agents were given.
+      documentName: input.document?.name ?? null,
+      documentText: input.document?.text ?? null,
+      documentPages: input.document?.pages ?? 0,
+      documentTruncated: input.document?.truncated ?? false,
     },
   });
 
@@ -72,6 +82,7 @@ export async function startExecution(input: StartExecutionInput): Promise<Starte
     workflowId: workflow.id,
     workflowName: workflow.name,
     task: input.task,
+    document: input.document ?? null,
     graph,
     maxConcurrency: input.maxConcurrency ?? env.ENGINE_MAX_CONCURRENCY,
     maxAttempts: env.ENGINE_MAX_ATTEMPTS,
@@ -90,6 +101,7 @@ interface RunArgs {
   workflowId: string;
   workflowName: string;
   task: string;
+  document: RunDocument | null;
   graph: WorkflowGraph;
   maxConcurrency: number;
   maxAttempts: number;
@@ -124,6 +136,7 @@ async function runAndPersist(args: RunArgs): Promise<ExecutionResult> {
         workflowId: args.workflowId,
         workflowName: args.workflowName,
         task: args.task,
+        document: args.document,
         graph: args.graph,
         maxConcurrency: args.maxConcurrency,
         maxAttempts: args.maxAttempts,
@@ -176,7 +189,11 @@ async function runAndPersist(args: RunArgs): Promise<ExecutionResult> {
   return getExecution(args.executionId);
 }
 
-async function persistStep(executionId: string, step: ExecutionStep, sequence: number): Promise<void> {
+async function persistStep(
+  executionId: string,
+  step: ExecutionStep,
+  sequence: number,
+): Promise<void> {
   try {
     await prisma.executionStep.create({
       data: {

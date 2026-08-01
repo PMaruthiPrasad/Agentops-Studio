@@ -6,6 +6,7 @@ import { useState } from 'react';
 import {
   ArrowLeft,
   CircleDollarSign,
+  FileText,
   GitFork,
   Layers,
   Timer,
@@ -20,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useExecution } from '@/hooks/use-resources';
+import { estimateTokens } from '@/lib/providers/tokens';
 import { deleteExecution } from '@/lib/workflow-actions';
 import {
   formatCost,
@@ -109,13 +111,43 @@ export function ExecutionDetail({ executionId }: { executionId: string }) {
           </div>
 
           <p className="max-w-3xl text-sm text-muted-foreground">{execution.task}</p>
+
+          {execution.document ? (
+            // The extracted text is kept rather than the file, so this is the
+            // only surviving record of what the agents actually read.
+            <details className="max-w-3xl">
+              <summary className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+                <FileText className="size-3.5" />
+                {execution.document.name}
+                <span className="tabular text-[11px]">
+                  ({execution.document.pages > 0 ? `${execution.document.pages} pages, ` : ''}
+                  {formatTokens(estimateTokens(execution.document.text))} tokens
+                  {execution.document.truncated ? ', truncated' : ''})
+                </span>
+              </summary>
+              <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded border border-border bg-muted/40 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                {execution.document.text}
+              </pre>
+            </details>
+          ) : null}
+
           <p className="tabular font-mono text-[11px] text-muted-foreground">{execution.id}</p>
         </div>
 
-        <Button variant="outline" size="sm" onClick={() => void onDelete()} loading={deleting}>
-          <Trash2 />
-          Delete
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* The same run, without the telemetry — for whoever asked for the
+              review rather than whoever built the workflow. */}
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/executions/${executionId}/report`}>
+              <FileText />
+              Report
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => void onDelete()} loading={deleting}>
+            <Trash2 />
+            Delete
+          </Button>
+        </div>
       </div>
 
       {execution.error ? (

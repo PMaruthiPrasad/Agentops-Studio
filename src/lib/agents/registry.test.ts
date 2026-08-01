@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createAgent, createAgentForNode, createDefaultAgent, resolveNodeAgentConfig } from './registry';
+import {
+  createAgent,
+  createAgentForNode,
+  createDefaultAgent,
+  resolveNodeAgentConfig,
+} from './registry';
 import { AGENT_DEFINITIONS, ALL_AGENT_DEFINITIONS, getAgentDefinition } from './definitions';
 import { AGENT_TYPES, type AgentType } from '@/types/agent';
 import { node } from '@/test/fixtures';
@@ -182,6 +187,71 @@ describe('agent execution', () => {
     expect(result.usage.totalTokens).toBeGreaterThan(0);
     expect(result.costUsd).toBeGreaterThan(0);
     expect(result.provider).toBe('mock');
+  });
+
+  it('puts an attached document in the prompt, ahead of upstream commentary', async () => {
+    // Ordering is the point: a reviewer that reads a summary of a contract
+    // instead of the contract will confidently review the summary.
+    const agent = createDefaultAgent('reviewer');
+
+    const result = await agent.execute({
+      task: 'Find the risks that block signature',
+      document: {
+        name: 'licence.pdf',
+        text: 'Clause 7.2 — the indemnity is uncapped.',
+        pages: 12,
+        truncated: false,
+      },
+      upstream: [
+        {
+          nodeId: 'n0',
+          agentType: 'planner',
+          label: 'Plan',
+          output: 'first read the agreement',
+          confidence: 0.9,
+        },
+      ],
+      nodeId: 'n1',
+      nodeLabel: 'Reviewer',
+      attempt: 1,
+    });
+
+    expect(result.userPrompt).toContain('licence.pdf');
+    expect(result.userPrompt).toContain('the indemnity is uncapped');
+    expect(result.userPrompt.indexOf('Attached document')).toBeLessThan(
+      result.userPrompt.indexOf('Upstream context'),
+    );
+  });
+
+  it('says so in the prompt when the document was truncated', async () => {
+    // A model that assumes it has the whole agreement will report on clauses
+    // that are simply missing.
+    const agent = createDefaultAgent('legal_validator');
+
+    const result = await agent.execute({
+      task: 'Check it',
+      document: { name: 'long.pdf', text: 'Clause 1.', pages: 400, truncated: true },
+      upstream: [],
+      nodeId: 'n1',
+      nodeLabel: 'Legal Validator',
+      attempt: 1,
+    });
+
+    expect(result.userPrompt).toContain('truncated');
+  });
+
+  it('leaves the prompt untouched when no document is attached', async () => {
+    const agent = createDefaultAgent('reviewer');
+
+    const result = await agent.execute({
+      task: 'Review it',
+      upstream: [],
+      nodeId: 'n1',
+      nodeLabel: 'Reviewer',
+      attempt: 1,
+    });
+
+    expect(result.userPrompt).not.toContain('Attached document');
   });
 
   it('replays upstream context into the prompt', async () => {

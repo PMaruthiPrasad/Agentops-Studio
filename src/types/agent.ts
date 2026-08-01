@@ -21,6 +21,14 @@ export const AGENT_TYPES = [
 export const agentTypeSchema = z.enum(AGENT_TYPES);
 export type AgentType = z.infer<typeof agentTypeSchema>;
 
+/**
+ * Ceiling on extracted document text, in characters — roughly 60k tokens, or a
+ * 100-page agreement. Every node in the graph receives the document, so this
+ * number is multiplied by the node count on each run: it is a cost control as
+ * much as a payload limit.
+ */
+export const MAX_DOCUMENT_CHARS = 240_000;
+
 export const agentConfigSchema = z.object({
   id: z.string().min(1),
   type: agentTypeSchema,
@@ -52,9 +60,29 @@ export interface UpstreamOutput {
   confidence: number;
 }
 
+/**
+ * A document attached to a run, already reduced to text.
+ *
+ * Extraction happens once, at upload, rather than per node: the text is what
+ * gets stored, replayed into every prompt, and shown in the report, so the
+ * original file never has to be kept or re-parsed. Defined here, at the deepest
+ * layer that consumes it, and re-exported for the API and UI.
+ */
+export const runDocumentSchema = z.object({
+  name: z.string().min(1).max(200),
+  text: z.string().min(1).max(MAX_DOCUMENT_CHARS),
+  /** Pages the extractor saw. 0 when the source has no page concept. */
+  pages: z.number().int().nonnegative(),
+  /** True when the source was longer than `MAX_DOCUMENT_CHARS`. */
+  truncated: z.boolean(),
+});
+export type RunDocument = z.infer<typeof runDocumentSchema>;
+
 export interface AgentExecutionInput {
   /** The workflow-level task the user typed. */
   task: string;
+  /** Attached source material, replayed into every node's prompt. */
+  document?: RunDocument | null;
   upstream: UpstreamOutput[];
   nodeId: string;
   nodeLabel: string;

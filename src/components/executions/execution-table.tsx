@@ -87,17 +87,19 @@ export function ExecutionTable({
           {executions.map((execution) => (
             <tr
               key={execution.id}
-              className="group border-b border-border/60 transition-colors last:border-0 hover:bg-accent/40"
+              className="group relative border-b border-border/60 transition-colors last:border-0 hover:bg-accent/40"
             >
               <td className="px-3 py-2.5">
                 <StatusBadge status={execution.status} />
               </td>
 
               {hideWorkflow ? null : (
-                <td className="max-w-[180px] px-3 py-2.5">
+                <td className="relative z-10 max-w-[180px] px-3 py-2.5">
+                  {/* Raised above the row overlay: this is the one place in the
+                      row that deliberately goes somewhere other than the run. */}
                   <Link
                     href={`/workflows/${execution.workflowId}`}
-                    className="block truncate font-medium hover:text-primary"
+                    className="inline-block max-w-full truncate font-medium hover:text-primary"
                   >
                     {execution.workflowName}
                   </Link>
@@ -105,7 +107,13 @@ export function ExecutionTable({
               )}
 
               <td className="max-w-[280px] px-3 py-2.5 text-muted-foreground">
-                <Link href={`/executions/${execution.id}`} className="block truncate">
+                {/* The row's primary target. `after:` stretches its hit area over
+                    the whole row so cost, duration and empty space all open the
+                    report — clicking a run should never be a game of pixel golf. */}
+                <Link
+                  href={`/executions/${execution.id}`}
+                  className="block truncate after:absolute after:inset-0 after:content-['']"
+                >
                   {truncate(execution.task, 90)}
                 </Link>
               </td>
@@ -127,13 +135,12 @@ export function ExecutionTable({
               </td>
 
               <td className="px-3 py-2.5">
-                <Link
-                  href={`/executions/${execution.id}`}
-                  aria-label={`Open run ${execution.id}`}
-                  className="text-muted-foreground transition-colors group-hover:text-foreground"
-                >
-                  <ChevronRight className="size-4" />
-                </Link>
+                {/* Purely an affordance now — the row itself is the link, so a
+                    second anchor here would only add a duplicate tab stop. */}
+                <ChevronRight
+                  className="size-4 text-muted-foreground transition-colors group-hover:text-foreground"
+                  aria-hidden
+                />
               </td>
             </tr>
           ))}

@@ -128,6 +128,14 @@ model Execution {
   /// JSON WorkflowGraph actually executed — makes a run fully reproducible.
   graphSnapshot String @default("{\"nodes\":[],\"edges\":[]}")
 
+  /// Attached document, stored as extracted text. Kept alongside the graph
+  /// snapshot for the same reason: without it the run cannot be reproduced or
+  /// understood after the fact, since the file itself is never retained.
+  documentName      String?
+  documentText      String?
+  documentPages     Int     @default(0)
+  documentTruncated Boolean @default(false)
+
   workflow Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   steps    ExecutionStep[]
 

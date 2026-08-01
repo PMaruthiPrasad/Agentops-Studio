@@ -136,6 +136,20 @@ export abstract class BaseAgent {
   protected buildUserPrompt(input: AgentExecutionInput): string {
     const sections: string[] = [`# Task\n${input.task}`];
 
+    // Ahead of upstream context on purpose: the attachment is the source
+    // material every node reasons about, while upstream output is commentary on
+    // it. A reviewer reading a summary of a contract instead of the contract is
+    // the failure mode this ordering avoids.
+    if (input.document) {
+      sections.push(
+        `# Attached document: ${input.document.name}\n` +
+          (input.document.truncated
+            ? '(truncated — this is the first part of a longer document)\n'
+            : '') +
+          input.document.text,
+      );
+    }
+
     if (input.upstream.length > 0) {
       sections.push(`# Upstream context\n${this.renderUpstream(input.upstream)}`);
     }
@@ -175,11 +189,7 @@ export abstract class BaseAgent {
    * node claim more confidence than its weakest input — errors compound
    * downstream and pretending otherwise is how agent systems mislead people.
    */
-  protected adjustConfidence(
-    raw: number,
-    _output: string,
-    input: AgentExecutionInput,
-  ): number {
+  protected adjustConfidence(raw: number, _output: string, input: AgentExecutionInput): number {
     if (input.upstream.length === 0) return raw;
     const weakest = Math.min(...input.upstream.map((u) => u.confidence));
     // Blend rather than hard-clamp: this node's own reasoning still counts.

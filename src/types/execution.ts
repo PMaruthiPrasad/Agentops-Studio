@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { agentTypeSchema, type AgentType } from './agent';
+import { agentTypeSchema, type AgentType, type RunDocument } from './agent';
+
+export type { RunDocument };
 import { providerIdSchema, tokenUsageSchema } from './provider';
 
 export const EXECUTION_STATUSES = [
@@ -87,6 +89,8 @@ export interface ExecutionResult {
   workflowId: string;
   workflowName: string;
   task: string;
+  /** Document the run was given, as extracted text. Null when none was attached. */
+  document: RunDocument | null;
   status: ExecutionStatus;
   startedAt: string;
   completedAt: string | null;

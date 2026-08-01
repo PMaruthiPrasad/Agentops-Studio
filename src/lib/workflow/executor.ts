@@ -1,4 +1,4 @@
-import type { AgentConfig, AgentType, UpstreamOutput } from '@/types/agent';
+import type { AgentConfig, AgentType, RunDocument, UpstreamOutput } from '@/types/agent';
 import type {
   ExecutionEvent,
   ExecutionMetrics,
@@ -62,6 +62,8 @@ export interface ExecuteWorkflowOptions {
   workflowId: string;
   workflowName: string;
   task: string;
+  /** Attached source material. Every node in the graph receives it. */
+  document?: RunDocument | null;
   graph: WorkflowGraph;
   maxConcurrency?: number;
   maxAttempts?: number;
@@ -119,6 +121,7 @@ export async function executeWorkflow(
     executionId,
     workflowId,
     task,
+    document = null,
     graph,
     signal,
     maxConcurrency = DEFAULT_MAX_CONCURRENCY,
@@ -202,6 +205,7 @@ export async function executeWorkflow(
         layerIndex,
         executionId,
         task,
+        document,
         maxAttempts,
         nodeTimeoutMs,
         ...(signal ? { signal } : {}),
@@ -268,6 +272,7 @@ interface RunNodeArgs {
   layerIndex: number;
   executionId: string;
   task: string;
+  document: RunDocument | null;
   maxAttempts: number;
   nodeTimeoutMs: number;
   signal?: AbortSignal;
@@ -275,10 +280,14 @@ interface RunNodeArgs {
 }
 
 async function runNode(args: RunNodeArgs): Promise<NodeOutcome> {
-  const { node, upstream, layerIndex, executionId, task, nodeTimeoutMs, signal, deps } = args;
+  const { node, upstream, layerIndex, executionId, task, document, nodeTimeoutMs, signal, deps } =
+    args;
 
   // A node may cap its own retries below the run-wide default.
-  const maxAttempts = Math.max(1, Math.min(args.maxAttempts, node.config.maxAttempts ?? args.maxAttempts));
+  const maxAttempts = Math.max(
+    1,
+    Math.min(args.maxAttempts, node.config.maxAttempts ?? args.maxAttempts),
+  );
 
   const agent = deps.buildAgent(node);
   const startMs = deps.now();
@@ -316,6 +325,7 @@ async function runNode(args: RunNodeArgs): Promise<NodeOutcome> {
       const result = await withTimeout(nodeTimeoutMs, signal, (timeoutSignal) =>
         agent.execute({
           task,
+          document,
           upstream,
           nodeId: node.id,
           nodeLabel: node.label,

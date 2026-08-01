@@ -1,6 +1,7 @@
 'use client';
 
 import { api } from '@/lib/api-client';
+import type { RunDocument } from '@/types/agent';
 import { workflowExportSchema, type Workflow, type WorkflowGraph } from '@/types/workflow';
 import type { OptimizationReport } from '@/types/optimizer';
 import type { ApplySuggestionsResult } from '@/services/optimizer.service';
@@ -79,9 +80,22 @@ export interface StartExecutionResult {
 export function startExecution(args: {
   workflowId: string;
   task: string;
+  document?: RunDocument;
   graphOverride?: WorkflowGraph;
 }): Promise<StartExecutionResult> {
   return api.post<StartExecutionResult>('/api/executions', args);
+}
+
+/**
+ * Upload a PDF and get its text back.
+ *
+ * Separate from `startExecution` on purpose: a scanned or corrupt file fails
+ * here, before any agent has been billed for reading nothing.
+ */
+export function extractDocument(file: File, signal?: AbortSignal): Promise<RunDocument> {
+  const form = new FormData();
+  form.append('file', file);
+  return api.upload<RunDocument>('/api/documents/extract', form, signal ? { signal } : {});
 }
 
 export function deleteExecution(id: string): Promise<void> {
@@ -116,7 +130,9 @@ export async function importWorkflowFile(file: File): Promise<Workflow> {
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     throw new Error(
-      first ? `${file.name}: ${first.path.join('.') || 'document'} — ${first.message}` : `${file.name} is not a valid workflow export.`,
+      first
+        ? `${file.name}: ${first.path.join('.') || 'document'} — ${first.message}`
+        : `${file.name} is not a valid workflow export.`,
     );
   }
 

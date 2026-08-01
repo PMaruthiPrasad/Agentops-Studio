@@ -7,11 +7,7 @@ import type {
   AgentConfiguration as AgentConfigurationRow,
 } from '@prisma/client';
 
-import {
-  agentTypeSchema,
-  type AgentConfig,
-  type AgentType,
-} from '@/types/agent';
+import { agentTypeSchema, type AgentConfig, type AgentType, type RunDocument } from '@/types/agent';
 import { providerIdSchema, type ProviderId } from '@/types/provider';
 import {
   edgeConditionSchema,
@@ -90,10 +86,7 @@ export function toWorkflowEdge(row: WorkflowEdgeRow): WorkflowEdge {
   };
 }
 
-export function toWorkflowGraph(
-  nodes: WorkflowNodeRow[],
-  edges: WorkflowEdgeRow[],
-): WorkflowGraph {
+export function toWorkflowGraph(nodes: WorkflowNodeRow[], edges: WorkflowEdgeRow[]): WorkflowGraph {
   return {
     nodes: nodes.map(toWorkflowNode),
     edges: edges.map(toWorkflowEdge),
@@ -154,10 +147,7 @@ export function toExecutionStep(row: ExecutionStepRow): ExecutionStep {
   };
 }
 
-export function toExecutionMetrics(
-  row: ExecutionRow,
-  steps: ExecutionStep[],
-): ExecutionMetrics {
+export function toExecutionMetrics(row: ExecutionRow, steps: ExecutionStep[]): ExecutionMetrics {
   return {
     totalDurationMs: row.durationMs,
     totalAgentTimeMs: steps.reduce((total, step) => total + step.durationMs, 0),
@@ -182,6 +172,24 @@ export function toExecutionMetrics(
 
 export type ExecutionWithSteps = ExecutionRow & { steps: ExecutionStepRow[] };
 
+/**
+ * Rebuild the attachment from its columns.
+ *
+ * The name is the discriminator: a run either had a document or it didn't, and
+ * a row with a name but no text would mean extraction succeeded and the text
+ * was lost, which nothing in the write path can produce.
+ */
+function toRunDocument(row: ExecutionRow): RunDocument | null {
+  if (!row.documentName || !row.documentText) return null;
+
+  return {
+    name: row.documentName,
+    text: row.documentText,
+    pages: row.documentPages,
+    truncated: row.documentTruncated,
+  };
+}
+
 export function toExecutionResult(row: ExecutionWithSteps): ExecutionResult {
   const steps = row.steps.map(toExecutionStep);
   return {
@@ -189,6 +197,7 @@ export function toExecutionResult(row: ExecutionWithSteps): ExecutionResult {
     workflowId: row.workflowId,
     workflowName: row.workflowName,
     task: row.task,
+    document: toRunDocument(row),
     status: toExecutionStatus(row.status),
     startedAt: row.startedAt.toISOString(),
     completedAt: row.completedAt?.toISOString() ?? null,
