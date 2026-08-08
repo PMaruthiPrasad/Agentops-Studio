@@ -26,8 +26,8 @@ describe('getPricing', () => {
     // to the optimizer's cost findings.
     expect(getPricing('gemini-3.6-flash')).not.toBe(FALLBACK_PRICING);
     expect(getPricing('gemini-3.6-flash')).toEqual({
-      inputPerMillion: 0.3,
-      outputPerMillion: 2.5,
+      inputPerMillion: 0.75,
+      outputPerMillion: 3.75,
     });
   });
 

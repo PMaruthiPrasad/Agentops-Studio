@@ -277,6 +277,8 @@ GOOGLE_APPLICATION_CREDENTIALS="/path/key.json"    # service account
 
 Because credentials are ambient rather than a value we can inspect, `GOOGLE_CLOUD_PROJECT` is what marks the provider as configured — `isAvailable()` reports "configured", not "credentials verified". If ADC turns out to be missing, the first call fails with a **non-retryable** error naming the fix rather than burning all three retry attempts on a misconfiguration.
 
+`gemini-3.6-flash` bills at **$0.75 / $3.75 per 1M input / output tokens**. That row in `MODEL_PRICING` (`src/lib/providers/pricing.ts`) is where every reported cost for a Google run comes from, so pointing `GOOGLE_DEFAULT_MODEL` at a model the table doesn't list means costs are estimated at the fallback rate of $1 / $4 rather than the model's real one.
+
 Only the token minting uses a library (`google-auth-library`); the `generateContent` call itself is a plain `fetch`, which keeps `AbortSignal` cancellation working and leaves retry policy entirely to the engine.
 
 The sidebar always shows which provider is actually serving requests, so "am I spending money right now?" is answerable at a glance.
@@ -322,7 +324,7 @@ npm test
 npm run test:coverage
 ```
 
-**509 tests across 25 files.** Coverage on the domain layer: `lib/workflow` 96%, `lib/optimizer` 92%.
+**547 tests across 29 files.** Coverage on the domain layer: `lib/workflow` 96%, `lib/optimizer` 92%.
 
 | Area | What's covered |
 |---|---|
@@ -345,7 +347,6 @@ The engine tests inject a frozen clock, a no-op sleep, and stub agents, so they 
 - **SQLite.** Fine for local use; the schema moves to Postgres with a datasource change and a `TEXT` → `jsonb` swap on the JSON columns.
 - **The service layer is not unit-tested.** `workflow.service`, `execution.service`, and `analytics.service` all talk to Prisma, so testing them properly means a throwaway database per run rather than a mock that would only assert the mock. The pure parts they depend on — the engine, the optimizer, serialisation, the event bus — are covered directly. The API surface is exercised end-to-end instead (see below).
 - **The real OpenAI, Anthropic and Google providers are only covered structurally.** Their request-shaping logic is tested through the registry, pricing, and sampling-parameter helpers; the HTTP calls themselves would need recorded fixtures or live credentials.
-- **The `gemini-3.6-flash` price row is inherited from the Gemini 2.5 Flash tier and is unverified.** Every cost figure the dashboard and optimizer report for a Google run depends on it — confirm against the Vertex pricing page before trusting those numbers.
 - **Attached PDFs are flattened to text, and every node gets the whole document.** Extraction happens once at upload (`POST /api/documents/extract`) so that all four providers see the same thing and the `LLMProvider` interface stays string-based. Two consequences worth knowing: layout is lost, so tables and multi-column pages arrive in reading order rather than as tables; and a scanned PDF with no text layer is rejected rather than silently sent as a blank document — it needs OCR first. Because the text is replayed into *every* node's prompt, input tokens scale with document size × node count, which dominates the cost of a run on a long agreement.
 - **Layout is not tested against real-world PDFs.** The extractor is covered with generated PDFs built byte by byte in `pdf-fixture.ts`, which exercises the parse, pagination, whitespace and truncation paths but not the messy ones — rotated pages, embedded fonts with broken encodings, or forms.
 

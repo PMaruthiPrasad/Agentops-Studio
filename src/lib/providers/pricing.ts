@@ -25,10 +25,10 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 
   // Google (Vertex AI)
   'gemini-2.5-flash': { inputPerMillion: 0.3, outputPerMillion: 2.5 },
-  // Same tier rate as 2.5 Flash, NOT verified against published 3.x rates.
-  // Confirm at cloud.google.com/vertex-ai/generative-ai/pricing — every cost
-  // figure reported for a Google run depends on this row.
-  'gemini-3.6-flash': { inputPerMillion: 0.3, outputPerMillion: 2.5 },
+  // Confirmed against the published Vertex rates (2026-08-08). 3.6 Flash is a
+  // tier above 2.5 Flash, not the same price — every cost figure reported for a
+  // Google run comes from this row, so it is checked rather than inherited.
+  'gemini-3.6-flash': { inputPerMillion: 0.75, outputPerMillion: 3.75 },
 
   // Mock — priced like a small hosted model so demo numbers stay believable.
   'mock-sim-1': { inputPerMillion: 0.2, outputPerMillion: 0.8 },
